@@ -305,12 +305,12 @@
     function startAudio() {
       const AC = new (window.AudioContext || window.webkitAudioContext)();
       const master = AC.createGain();
-      master.gain.value = 0.45;
+      master.gain.value = 0.7;
       master.connect(AC.destination);
 
       // ---- Зүрхний цохилт (lub-dub) ----
       const beatGain = AC.createGain();
-      beatGain.gain.value = 0.35; // дуунаас доогуур, зөөлөн
+      beatGain.gain.value = 0.85; // тод сонсогдох цохилт
       beatGain.connect(master);
       function thump(time, freq, dur, vol) {
         const o = AC.createOscillator();
@@ -352,7 +352,7 @@
         events: {
           onReady: () => {
             ytReady = true;
-            if (wantPlay) { ytPlayer.setVolume(70); ytPlayer.playVideo(); }
+            if (wantPlay) { ytPlayer.setVolume(55); ytPlayer.playVideo(); }
           },
         },
       });
@@ -371,7 +371,7 @@
       audioOn = true;
       try { startAudio(); } catch (e) {}          // зүрхний цохилт
       wantPlay = true;                             // River Flows in You
-      if (ytReady && ytPlayer) { ytPlayer.setVolume(70); ytPlayer.playVideo(); }
+      if (ytReady && ytPlayer) { ytPlayer.setVolume(55); ytPlayer.playVideo(); }
       overlay.style.opacity = "0";
       setTimeout(() => (overlay.style.display = "none"), 800);
     }
