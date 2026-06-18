@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Heart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@700&display=swap" rel="stylesheet" />
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: #000; overflow: hidden; }
@@ -58,7 +61,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script>
-  window.addEventListener("load", () => {
+  window.addEventListener("load", async () => {
     /* =====================================================
        PHASE 1 — THREE.js: particle-ууд "AHXAA"+зүрх угсарна
        ===================================================== */
@@ -96,19 +99,22 @@
       const pt = path.getPointAtLength(i);
       addParticle(pt.x - CX, -(pt.y - CY), 0, HEART);
     }
-    // "AHXAA" текст (алтан)
+    // "AHXAA" текст (алтан, уран бичмэл фонт)
     const GOLD = [1.0, 0.82, 0.29];
-    const cw = 600, ch = 240;
+    const FONT = "160px 'Great Vibes', cursive"; // бичмэл фонт
+    // фонт ачаалагдсаныг баталгаажуулна (canvas draw-аас өмнө)
+    try { await document.fonts.load(FONT); await document.fonts.ready; } catch (e) {}
+    const cw = 860, ch = 300;
     const cv = document.createElement("canvas");
     cv.width = cw; cv.height = ch;
     const tctx = cv.getContext("2d");
     tctx.fillStyle = "#fff";
     tctx.textAlign = "center";
     tctx.textBaseline = "middle";
-    tctx.font = "bold 130px 'Segoe UI', Arial, sans-serif";
+    tctx.font = FONT;
     tctx.fillText("AHXAA", cw / 2, ch / 2);
     const timg = tctx.getImageData(0, 0, cw, ch).data;
-    const STEP = 4, TS = 0.62, TY = -10;
+    const STEP = 3, TS = 0.5, TY = -10;
     for (let y = 0; y < ch; y += STEP)
       for (let x = 0; x < cw; x += STEP)
         if (timg[(y * cw + x) * 4 + 3] > 128)
