@@ -327,27 +327,52 @@
       heartbeat();
       setInterval(heartbeat, 1150); // ~52 bpm — тайван цохилт
 
-      // ---- Зөөлөн дэвсгэр пад (Am-ish аккорд + удаан swell) ----
-      const padGain = AC.createGain();
-      padGain.gain.value = 0.14;
-      padGain.connect(master);
-      const chord = [220.0, 261.63, 329.63, 440.0]; // A C E A
-      chord.forEach((f, i) => {
-        const o = AC.createOscillator();
-        o.type = "triangle";
-        o.frequency.value = f;
-        const g = AC.createGain();
-        g.gain.value = 0.18;
-        // удаан swell хийх LFO
-        const lfo = AC.createOscillator();
-        lfo.frequency.value = 0.05 + i * 0.013;
-        const lg = AC.createGain();
-        lg.gain.value = 0.12;
-        lfo.connect(lg).connect(g.gain);
-        o.connect(g).connect(padGain);
-        o.start();
-        lfo.start();
-      });
+      // ---- Зөөлөн пиано арпеджио (романтик аккорд дараалал) ----
+      const pianoGain = AC.createGain();
+      pianoGain.gain.value = 0.5;
+      pianoGain.connect(master);
+
+      // нэг пиано нот — хурдан attack, аажуу decay, харигараар баяжуулсан
+      function pianoNote(time, freq, dur, vol) {
+        const env = AC.createGain();
+        env.gain.setValueAtTime(0.0001, time);
+        env.gain.linearRampToValueAtTime(vol, time + 0.008); // хурц цохилт
+        env.gain.exponentialRampToValueAtTime(0.0001, time + dur); // аажуу унтрах
+        env.connect(pianoGain);
+        // фундамент + харигарууд (пиано шинж)
+        const partials = [[1, 1.0], [2, 0.45], [3, 0.22], [4, 0.12]];
+        partials.forEach(([mult, amp]) => {
+          const o = AC.createOscillator();
+          o.type = "triangle";
+          o.frequency.value = freq * mult;
+          const og = AC.createGain();
+          og.gain.value = amp;
+          o.connect(og).connect(env);
+          o.start(time);
+          o.stop(time + dur + 0.1);
+        });
+      }
+
+      // Аккорд дараалал: Am – F – C – G (романтик)
+      const chords = [
+        [220.0, 261.63, 329.63], // Am  (A C E)
+        [174.61, 220.0, 261.63], // F   (F A C)
+        [261.63, 329.63, 392.0], // C   (C E G)
+        [196.0, 246.94, 293.66], // G   (G B D)
+      ];
+      // арпеджио: эх – дунд – орой – дунд
+      const seq = [];
+      chords.forEach((c) => { seq.push(c[0], c[1], c[2], c[1]); });
+
+      let idx = 0;
+      const NOTE_GAP = 520; // мс — нэг нотны хооронд
+      function playNext() {
+        const f = seq[idx % seq.length];
+        idx++;
+        pianoNote(AC.currentTime + 0.02, f, 1.6, 0.6);
+      }
+      playNext();
+      setInterval(playNext, NOTE_GAP);
     }
 
     // Дарж эхлүүлэх — нэг товшилтоор дуу асаана
