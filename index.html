@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AHXAA ❤</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  #scene, #heart2 { position: fixed; inset: 0; width: 100%; height: 100%; }
+  /* Phase 1 — THREE.js (AHXAA угсрах) */
+  #scene { z-index: 2; transition: opacity 1.6s ease; }
+  /* Phase 2 — 2D canvas (улаан trace зүрх) */
+  #heart2 { z-index: 1; opacity: 0; transition: opacity 1.6s ease; display: block; }
+  #heart-svg { position: absolute; width: 0; height: 0; visibility: hidden; }
+</style>
+</head>
+<body>
+  <div id="scene"></div>
+  <canvas id="heart2"></canvas>
+
+  <svg id="heart-svg" viewBox="0 0 600 552">
+    <path d="M300,540
+      C300,540 30,360 30,180
+      C30,80 110,30 190,30
+      C250,30 290,70 300,110
+      C310,70 350,30 410,30
+      C490,30 570,80 570,180
+      C570,360 300,540 300,540 Z" />
+  </svg>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script>
+  window.addEventListener("load", () => {
+    /* =====================================================
+       PHASE 1 — THREE.js: particle-ууд "AHXAA"+зүрх угсарна
+       ===================================================== */
+    const container = document.getElementById("scene");
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      60, window.innerWidth / window.innerHeight, 1, 5000
+    );
+    camera.position.z = 620;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    const CX = 600 / 2, CY = 552 / 2;
+    const parts = [];
+    function addParticle(ex, ey, ez, col) {
+      parts.push({
+        sx: ex + (Math.random() - 0.5) * 30,
+        sy: ey + (Math.random() - 0.5) * 30,
+        sz: ez + (Math.random() - 0.5) * 70,
+        ex, ey, ez,
+        delay: Math.random() * 0.5,
+        dur: 0.4 + Math.random() * 0.5,
+        r: col[0], g: col[1], b: col[2],
+      });
+    }
+
+    // зүрхэн контур (ягаан)
+    const HEART = [1.0, 0.37, 0.69];
+    const path = document.querySelector("path");
+    const length = path.getTotalLength();
+    for (let i = 0; i < length; i += 0.6) {
+      const pt = path.getPointAtLength(i);
+      addParticle(pt.x - CX, -(pt.y - CY), 0, HEART);
+    }
+    // "AHXAA" текст (алтан)
+    const GOLD = [1.0, 0.82, 0.29];
+    const cw = 600, ch = 240;
+    const cv = document.createElement("canvas");
+    cv.width = cw; cv.height = ch;
+    const tctx = cv.getContext("2d");
+    tctx.fillStyle = "#fff";
+    tctx.textAlign = "center";
+    tctx.textBaseline = "middle";
+    tctx.font = "bold 130px 'Segoe UI', Arial, sans-serif";
+    tctx.fillText("AHXAA", cw / 2, ch / 2);
+    const timg = tctx.getImageData(0, 0, cw, ch).data;
+    const STEP = 4, TS = 0.62, TY = -10;
+    for (let y = 0; y < ch; y += STEP)
+      for (let x = 0; x < cw; x += STEP)
+        if (timg[(y * cw + x) * 4 + 3] > 128)
+          addParticle((x - cw / 2) * TS, -(y - ch / 2) * TS + TY, 0, GOLD);
+
+    const N = parts.length;
+    const positions = new Float32Array(N * 3);
+    const colors = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      colors[i * 3] = parts[i].r;
+      colors[i * 3 + 1] = parts[i].g;
+      colors[i * 3 + 2] = parts[i].b;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const material = new THREE.PointsMaterial({
+      size: 2.6, vertexColors: true, transparent: true,
+      opacity: 0.95, blending: THREE.AdditiveBlending, depthTest: false,
+    });
+    const points = new THREE.Points(geometry, material);
+    scene.add(points);
+
+    const state = { p: 0 };
+    const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+    let phase1Running = true;
+    let phase2Started = false;
+    // нэг удаа угсраад, бариад → Phase 2 руу шилжинэ
+    gsap.to(state, {
+      p: 1, duration: 4.5, ease: "none",
+      onComplete: () => {
+        // 1.5 сек бариад дараа нь шилжих
+        gsap.delayedCall(1.5, startPhase2);
+      },
+    });
+    // RAF throttle-д баригдсан ч шилжилт баталгаатай болгох fallback
+    setTimeout(startPhase2, 6500);
+
+    function renderP1() {
+      if (!phase1Running) return;
+      const pos = geometry.attributes.position.array;
+      const p = state.p;
+      for (let i = 0; i < N; i++) {
+        const pt = parts[i];
+        const local = ease(clamp01((p - pt.delay) / pt.dur));
+        const j = i * 3;
+        pos[j]     = pt.sx + (pt.ex - pt.sx) * local;
+        pos[j + 1] = pt.sy + (pt.ey - pt.sy) * local;
+        pos[j + 2] = pt.sz + (pt.ez - pt.sz) * local;
+      }
+      geometry.attributes.position.needsUpdate = true;
+      points.rotation.y = Math.sin(Date.now() * 0.0003) * 0.1;
+      renderer.render(scene, camera);
+      requestAnimationFrame(renderP1);
+    }
+    renderP1();
+
+    /* =====================================================
+       PHASE 2 — 2D canvas: улаан trace зүрхэн анимаци
+       (зурган дахь parametric heart кодын дагуу)
+       ===================================================== */
+    function startPhase2() {
+      if (phase2Started) return;
+      phase2Started = true;
+      // Phase 1 бүдгэрч, Phase 2 гарч ирнэ
+      container.style.opacity = "0";
+      heartStart();
+      const h2 = document.getElementById("heart2");
+      h2.style.opacity = "1";
+      // THREE render-г зогсоох (нөөц чөлөөлөх)
+      setTimeout(() => { phase1Running = false; }, 1700);
+    }
+
+    function heartStart() {
+      const canvas = document.getElementById("heart2");
+      const ctx = canvas.getContext("2d");
+      const rand = Math.random;
+      let width, height;
+
+      // parametric heart цэг
+      const heartPosition = (rad) => [
+        Math.pow(Math.sin(rad), 3),
+        -(15 * Math.cos(rad) - 5 * Math.cos(2 * rad)
+          - 2 * Math.cos(3 * rad) - Math.cos(4 * rad)),
+      ];
+      const scaleAndTranslate = (pos, sx, sy, dx, dy) =>
+        [dx + pos[0] * sx, dy + pos[1] * sy];
+
+      let pointsOrigin, heartPointsCount, targetPoints = [], e = [];
+      const traceCount = 50;
+      const config = { traceK: 0.4, timeDelta: 0.01 };
+      let time = 0;
+
+      function build() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        const f = Math.min(width, height) / 700; // дэлгэцэнд тааруулах
+        pointsOrigin = [];
+        const dr = window.innerWidth < 700 ? 0.3 : 0.1;
+        for (let i = 0; i < Math.PI * 2; i += dr)
+          pointsOrigin.push(scaleAndTranslate(heartPosition(i), 210 * f, 13 * f, 0, 0));
+        for (let i = 0; i < Math.PI * 2; i += dr)
+          pointsOrigin.push(scaleAndTranslate(heartPosition(i), 150 * f, 9 * f, 0, 0));
+        for (let i = 0; i < Math.PI * 2; i += dr)
+          pointsOrigin.push(scaleAndTranslate(heartPosition(i), 90 * f, 5 * f, 0, 0));
+        heartPointsCount = pointsOrigin.length;
+
+        e = [];
+        for (let i = 0; i < heartPointsCount; i++) {
+          const x = rand() * width, y = rand() * height;
+          e[i] = {
+            vx: 0, vy: 0, R: 2,
+            speed: rand() + 5,
+            q: ~~(rand() * heartPointsCount),
+            D: 2 * (i % 2) - 1,
+            force: 0.2 * rand() + 0.7,
+            f: "hsla(0," + ~~(40 * rand() + 100) + "%," + ~~(60 * rand() + 20) + "%,.3)",
+            trace: [],
+          };
+          for (let k = 0; k < traceCount; k++) e[i].trace[k] = { x, y };
+        }
+      }
+
+      function pulse(kx, ky) {
+        for (let i = 0; i < pointsOrigin.length; i++) {
+          targetPoints[i] = [
+            kx * pointsOrigin[i][0] + width / 2,
+            ky * pointsOrigin[i][1] + height / 2,
+          ];
+        }
+      }
+
+      function loop() {
+        const n = -Math.cos(time);
+        pulse((1 + n) * 0.5, (1 + n) * 0.5);
+        time += (Math.sin(time) < 0 ? 9 : n > 0.8 ? 0.2 : 1) * config.timeDelta;
+
+        ctx.fillStyle = "rgba(0,0,0,.1)";
+        ctx.fillRect(0, 0, width, height);
+
+        for (let i = e.length; i--; ) {
+          const u = e[i];
+          const q = targetPoints[u.q];
+          let dx = u.trace[0].x - q[0];
+          let dy = u.trace[0].y - q[1];
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (10 > len) {
+            if (0.95 < rand()) {
+              u.q = ~~(rand() * heartPointsCount);
+            } else {
+              if (0.99 < rand()) u.D *= -1;
+              u.q += u.D;
+              u.q %= heartPointsCount;
+              if (0 > u.q) u.q += heartPointsCount;
+            }
+          }
+          u.vx += (-dx / len) * u.speed;
+          u.vy += (-dy / len) * u.speed;
+          u.trace[0].x += u.vx;
+          u.trace[0].y += u.vy;
+          u.vx *= u.force;
+          u.vy *= u.force;
+          for (let k = 0; k < u.trace.length - 1; ) {
+            const T = u.trace[k];
+            const Nn = u.trace[++k];
+            Nn.x -= config.traceK * (Nn.x - T.x);
+            Nn.y -= config.traceK * (Nn.y - T.y);
+          }
+          ctx.fillStyle = u.f;
+          for (let k = 0; k < u.trace.length; k++)
+            ctx.fillRect(u.trace[k].x, u.trace[k].y, 1, 1);
+        }
+        requestAnimationFrame(loop);
+      }
+
+      build();
+      window.addEventListener("resize", build);
+      loop();
+    }
+
+    /* Phase 1 responsive */
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  });
+  </script>
+</body>
+</html>
