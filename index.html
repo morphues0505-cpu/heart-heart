@@ -353,26 +353,31 @@
         });
       }
 
-      // Аккорд дараалал: Am – F – C – G (романтик)
-      const chords = [
-        [220.0, 261.63, 329.63], // Am  (A C E)
-        [174.61, 220.0, 261.63], // F   (F A C)
-        [261.63, 329.63, 392.0], // C   (C E G)
-        [196.0, 246.94, 293.66], // G   (G B D)
+      // Yiruma – "River Flows in You" үндсэн аялгуу (A мажор)
+      const Cs5 = 554.37, B4 = 493.88, Gs4 = 415.30, Fs4 = 369.99,
+            E4 = 329.63, D4 = 293.66, Cs4 = 277.18, B3 = 246.94;
+      const A2 = 110.0, E2 = 82.41; // бас
+      // дээд C# давтагдаж, доош уруудах алдартай мотив
+      const melody = [
+        Cs5, B4, Cs5, B4, Cs5, Gs4, Cs5, Fs4,
+        Cs5, E4, Cs5, B4, Cs5, B4, Cs5, Gs4,
+        Cs5, Fs4, E4, Fs4, Gs4, E4, D4, Cs4, B3, Cs4,
       ];
-      // арпеджио: эх – дунд – орой – дунд
-      const seq = [];
-      chords.forEach((c) => { seq.push(c[0], c[1], c[2], c[1]); });
 
       let idx = 0;
-      const NOTE_GAP = 520; // мс — нэг нотны хооронд
+      const MELO_GAP = 175; // мс — урсгал хэмнэл
       function playNext() {
-        const f = seq[idx % seq.length];
+        const step = idx % melody.length;
+        const f = melody[step];
+        const now = AC.currentTime + 0.02;
+        pianoNote(now, f, 0.85, 0.5); // аялгуу (легато)
+        // зөөлөн бас — хэллэг бүрийн эхэнд
+        if (step % 8 === 0) pianoNote(now, A2, 2.4, 0.4);
+        else if (step % 8 === 4) pianoNote(now, E2, 2.4, 0.35);
         idx++;
-        pianoNote(AC.currentTime + 0.02, f, 1.6, 0.6);
       }
       playNext();
-      setInterval(playNext, NOTE_GAP);
+      setInterval(playNext, MELO_GAP);
     }
 
     // Дарж эхлүүлэх — нэг товшилтоор дуу асаана
