@@ -13,11 +13,31 @@
   /* Phase 2 — 2D canvas (улаан trace зүрх) */
   #heart2 { z-index: 1; opacity: 0; transition: opacity 1.6s ease; display: block; }
   #heart-svg { position: absolute; width: 0; height: 0; visibility: hidden; }
+  /* Дарж эхлүүлэх overlay (autoplay хоригийг тойрох) */
+  #startOverlay {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55); cursor: pointer;
+    transition: opacity 0.8s ease;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  #startOverlay .btn {
+    color: #fff; font-size: clamp(20px, 5vw, 30px); font-weight: 600;
+    padding: 18px 34px; border: 1.5px solid rgba(255,120,170,0.7);
+    border-radius: 999px; background: rgba(255,60,120,0.12);
+    backdrop-filter: blur(4px);
+    animation: pulseGlow 1.4s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%,100% { transform: scale(1);   box-shadow: 0 0 18px rgba(255,80,140,0.35); }
+    50%     { transform: scale(1.06); box-shadow: 0 0 36px rgba(255,80,140,0.6); }
+  }
 </style>
 </head>
 <body>
   <div id="scene"></div>
   <canvas id="heart2"></canvas>
+  <div id="startOverlay"><div class="btn">Дарж эхлүүлэх&nbsp;❤</div></div>
 
   <svg id="heart-svg" viewBox="0 0 600 552">
     <path d="M300,540
@@ -271,6 +291,77 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    /* =====================================================
+       SOUND — зүрхний цохилт + зөөлөн дэвсгэр хөгжим
+       (WebAudio-гоор шууд үүсгэнэ, файл шаардлагагүй)
+       ===================================================== */
+    function startAudio() {
+      const AC = new (window.AudioContext || window.webkitAudioContext)();
+      const master = AC.createGain();
+      master.gain.value = 0.45;
+      master.connect(AC.destination);
+
+      // ---- Зүрхний цохилт (lub-dub) ----
+      const beatGain = AC.createGain();
+      beatGain.gain.value = 0.9;
+      beatGain.connect(master);
+      function thump(time, freq, dur, vol) {
+        const o = AC.createOscillator();
+        o.type = "sine";
+        o.frequency.setValueAtTime(freq * 1.6, time);
+        o.frequency.exponentialRampToValueAtTime(freq, time + 0.06);
+        const g = AC.createGain();
+        g.gain.setValueAtTime(0.0001, time);
+        g.gain.linearRampToValueAtTime(vol, time + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+        o.connect(g).connect(beatGain);
+        o.start(time);
+        o.stop(time + dur + 0.05);
+      }
+      function heartbeat() {
+        const t = AC.currentTime + 0.02;
+        thump(t, 58, 0.16, 0.9);          // lub
+        thump(t + 0.21, 46, 0.22, 0.65);  // dub
+      }
+      heartbeat();
+      setInterval(heartbeat, 1150); // ~52 bpm — тайван цохилт
+
+      // ---- Зөөлөн дэвсгэр пад (Am-ish аккорд + удаан swell) ----
+      const padGain = AC.createGain();
+      padGain.gain.value = 0.14;
+      padGain.connect(master);
+      const chord = [220.0, 261.63, 329.63, 440.0]; // A C E A
+      chord.forEach((f, i) => {
+        const o = AC.createOscillator();
+        o.type = "triangle";
+        o.frequency.value = f;
+        const g = AC.createGain();
+        g.gain.value = 0.18;
+        // удаан swell хийх LFO
+        const lfo = AC.createOscillator();
+        lfo.frequency.value = 0.05 + i * 0.013;
+        const lg = AC.createGain();
+        lg.gain.value = 0.12;
+        lfo.connect(lg).connect(g.gain);
+        o.connect(g).connect(padGain);
+        o.start();
+        lfo.start();
+      });
+    }
+
+    // Дарж эхлүүлэх — нэг товшилтоор дуу асаана
+    const overlay = document.getElementById("startOverlay");
+    let audioOn = false;
+    function begin() {
+      if (audioOn) return;
+      audioOn = true;
+      try { startAudio(); } catch (e) {}
+      overlay.style.opacity = "0";
+      setTimeout(() => (overlay.style.display = "none"), 800);
+    }
+    overlay.addEventListener("click", begin);
+    overlay.addEventListener("touchstart", begin, { passive: true });
   });
   </script>
 </body>
