@@ -32,12 +32,18 @@
     0%,100% { transform: scale(1);   box-shadow: 0 0 18px rgba(255,80,140,0.35); }
     50%     { transform: scale(1.06); box-shadow: 0 0 36px rgba(255,80,140,0.6); }
   }
+  /* Нуугдсан YouTube тоглуулагч (зөвхөн дуу) */
+  #ytwrap {
+    position: fixed; width: 1px; height: 1px;
+    left: -9999px; top: -9999px; opacity: 0; pointer-events: none;
+  }
 </style>
 </head>
 <body>
   <div id="scene"></div>
   <canvas id="heart2"></canvas>
   <div id="startOverlay"><div class="btn">Дарж эхлүүлэх&nbsp;❤</div></div>
+  <div id="ytwrap"><div id="ytplayer"></div></div>
 
   <svg id="heart-svg" viewBox="0 0 600 552">
     <path d="M300,540
@@ -304,7 +310,7 @@
 
       // ---- Зүрхний цохилт (lub-dub) ----
       const beatGain = AC.createGain();
-      beatGain.gain.value = 0.9;
+      beatGain.gain.value = 0.35; // дуунаас доогуур, зөөлөн
       beatGain.connect(master);
       function thump(time, freq, dur, vol) {
         const o = AC.createOscillator();
@@ -326,67 +332,46 @@
       }
       heartbeat();
       setInterval(heartbeat, 1150); // ~52 bpm — тайван цохилт
-
-      // ---- Зөөлөн пиано арпеджио (романтик аккорд дараалал) ----
-      const pianoGain = AC.createGain();
-      pianoGain.gain.value = 0.5;
-      pianoGain.connect(master);
-
-      // нэг пиано нот — хурдан attack, аажуу decay, харигараар баяжуулсан
-      function pianoNote(time, freq, dur, vol) {
-        const env = AC.createGain();
-        env.gain.setValueAtTime(0.0001, time);
-        env.gain.linearRampToValueAtTime(vol, time + 0.008); // хурц цохилт
-        env.gain.exponentialRampToValueAtTime(0.0001, time + dur); // аажуу унтрах
-        env.connect(pianoGain);
-        // фундамент + харигарууд (пиано шинж)
-        const partials = [[1, 1.0], [2, 0.45], [3, 0.22], [4, 0.12]];
-        partials.forEach(([mult, amp]) => {
-          const o = AC.createOscillator();
-          o.type = "triangle";
-          o.frequency.value = freq * mult;
-          const og = AC.createGain();
-          og.gain.value = amp;
-          o.connect(og).connect(env);
-          o.start(time);
-          o.stop(time + dur + 0.1);
-        });
-      }
-
-      // Yiruma – "River Flows in You" үндсэн аялгуу (A мажор)
-      const Cs5 = 554.37, B4 = 493.88, Gs4 = 415.30, Fs4 = 369.99,
-            E4 = 329.63, D4 = 293.66, Cs4 = 277.18, B3 = 246.94;
-      const A2 = 110.0, E2 = 82.41; // бас
-      // дээд C# давтагдаж, доош уруудах алдартай мотив
-      const melody = [
-        Cs5, B4, Cs5, B4, Cs5, Gs4, Cs5, Fs4,
-        Cs5, E4, Cs5, B4, Cs5, B4, Cs5, Gs4,
-        Cs5, Fs4, E4, Fs4, Gs4, E4, D4, Cs4, B3, Cs4,
-      ];
-
-      let idx = 0;
-      const MELO_GAP = 175; // мс — урсгал хэмнэл
-      function playNext() {
-        const step = idx % melody.length;
-        const f = melody[step];
-        const now = AC.currentTime + 0.02;
-        pianoNote(now, f, 0.85, 0.5); // аялгуу (легато)
-        // зөөлөн бас — хэллэг бүрийн эхэнд
-        if (step % 8 === 0) pianoNote(now, A2, 2.4, 0.4);
-        else if (step % 8 === 4) pianoNote(now, E2, 2.4, 0.35);
-        idx++;
-      }
-      playNext();
-      setInterval(playNext, MELO_GAP);
     }
 
-    // Дарж эхлүүлэх — нэг товшилтоор дуу асаана
+    /* =====================================================
+       MUSIC — жинхэнэ "River Flows in You" (Yiruma)
+       нуугдсан YouTube тоглуулагчаар (бүх төхөөрөмжид ижил)
+       ===================================================== */
+    const YT_ID = "7maJOI3QMu0"; // Yiruma — River Flows in You (албан ёсны)
+    let ytPlayer = null, ytReady = false, wantPlay = false;
+
+    window.onYouTubeIframeAPIReady = function () {
+      ytPlayer = new YT.Player("ytplayer", {
+        width: "1", height: "1",
+        videoId: YT_ID,
+        playerVars: {
+          autoplay: 0, controls: 0, disablekb: 1, modestbranding: 1,
+          loop: 1, playlist: YT_ID, rel: 0, playsinline: 1,
+        },
+        events: {
+          onReady: () => {
+            ytReady = true;
+            if (wantPlay) { ytPlayer.setVolume(70); ytPlayer.playVideo(); }
+          },
+        },
+      });
+    };
+    (function loadYT() {
+      const s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(s);
+    })();
+
+    // Дарж эхлүүлэх — нэг товшилтоор дуу+хөгжим асаана
     const overlay = document.getElementById("startOverlay");
     let audioOn = false;
     function begin() {
       if (audioOn) return;
       audioOn = true;
-      try { startAudio(); } catch (e) {}
+      try { startAudio(); } catch (e) {}          // зүрхний цохилт
+      wantPlay = true;                             // River Flows in You
+      if (ytReady && ytPlayer) { ytPlayer.setVolume(70); ytPlayer.playVideo(); }
       overlay.style.opacity = "0";
       setTimeout(() => (overlay.style.display = "none"), 800);
     }
