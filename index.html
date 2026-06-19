@@ -6,7 +6,7 @@
 <title>Heart</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Great+Vibes&display=swap&subset=cyrillic,cyrillic-ext,latin" rel="stylesheet" />
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; background: #000; overflow: hidden; }
@@ -99,11 +99,12 @@
       const pt = path.getPointAtLength(i);
       addParticle(pt.x - CX, -(pt.y - CY), 0, HEART);
     }
-    // "AHXAA" текст (алтан, уран бичмэл фонт)
+    // "ХУЦӨӨ" текст (алтан, уран бичмэл фонт — кирилл дэмждэг)
     const GOLD = [1.0, 0.82, 0.29];
-    const FONT = "160px 'Great Vibes', cursive"; // бичмэл фонт
+    const NAME = "ХУЦӨӨ";
+    const FONT = "bold 170px 'Caveat', cursive"; // бичмэл фонт (кирилл)
     // фонт ачаалагдсаныг баталгаажуулна (canvas draw-аас өмнө)
-    try { await document.fonts.load(FONT); await document.fonts.ready; } catch (e) {}
+    try { await document.fonts.load(FONT, NAME); await document.fonts.ready; } catch (e) {}
     const cw = 860, ch = 300;
     const cv = document.createElement("canvas");
     cv.width = cw; cv.height = ch;
@@ -112,7 +113,7 @@
     tctx.textAlign = "center";
     tctx.textBaseline = "middle";
     tctx.font = FONT;
-    tctx.fillText("AHXAA", cw / 2, ch / 2);
+    tctx.fillText(NAME, cw / 2, ch / 2);
     const timg = tctx.getImageData(0, 0, cw, ch).data;
     const STEP = 3, TS = 0.5, TY = -10;
     for (let y = 0; y < ch; y += STEP)
@@ -338,36 +339,60 @@
       }
       heartbeat();
       setInterval(heartbeat, 1150); // ~52 bpm — тайван цохилт
+
+      // ---- ROCK GUITAR — гуйвуулсан (distortion) электро гитарын риф ----
+      // distortion муруй
+      function distCurve(amount) {
+        const k = amount, n = 4096, curve = new Float32Array(n), deg = Math.PI / 180;
+        for (let i = 0; i < n; i++) {
+          const x = (i * 2) / n - 1;
+          curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+        }
+        return curve;
+      }
+      const shaper = AC.createWaveShaper();
+      shaper.curve = distCurve(420);
+      shaper.oversample = "4x";
+      const tone = AC.createBiquadFilter(); // хатуу өндөр давтамжийг намсгах
+      tone.type = "lowpass";
+      tone.frequency.value = 2600;
+      const guitarGain = AC.createGain();
+      guitarGain.gain.value = 0.32;
+      shaper.connect(tone).connect(guitarGain).connect(master);
+
+      // power chord (root + 5th + октав) — рок дуудлага
+      function chordHit(time, freq, dur, vol) {
+        [1, 1.5, 2].forEach((m) => {
+          const o = AC.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.value = freq * m;
+          const g = AC.createGain();
+          g.gain.setValueAtTime(0.0001, time);
+          g.gain.linearRampToValueAtTime(vol, time + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+          o.connect(g).connect(shaper);
+          o.start(time);
+          o.stop(time + dur + 0.03);
+        });
+      }
+
+      // E хөгжмийн рок риф (драйв хэмнэл)
+      const E2 = 82.41, G2 = 98.0, A2 = 110.0, B2 = 123.47, D3 = 146.83;
+      const riff = [
+        E2, E2, E2, G2, A2, A2, G2, E2,
+        E2, E2, G2, A2, B2, A2, G2, D3,
+      ];
+      let gi = 0;
+      const STEP_MS = 200; // ~150 bpm-ийн найман дахь нот
+      function guitarStep() {
+        const accent = gi % 4 === 0;
+        chordHit(AC.currentTime + 0.02, riff[gi % riff.length],
+                 accent ? 0.32 : 0.18, accent ? 0.6 : 0.42);
+        gi++;
+      }
+      guitarStep();
+      setInterval(guitarStep, STEP_MS);
     }
-
-    /* =====================================================
-       MUSIC — жинхэнэ "River Flows in You" (Yiruma)
-       нуугдсан YouTube тоглуулагчаар (бүх төхөөрөмжид ижил)
-       ===================================================== */
-    const YT_ID = "7maJOI3QMu0"; // Yiruma — River Flows in You (албан ёсны)
-    let ytPlayer = null, ytReady = false, wantPlay = false;
-
-    window.onYouTubeIframeAPIReady = function () {
-      ytPlayer = new YT.Player("ytplayer", {
-        width: "1", height: "1",
-        videoId: YT_ID,
-        playerVars: {
-          autoplay: 0, controls: 0, disablekb: 1, modestbranding: 1,
-          loop: 1, playlist: YT_ID, rel: 0, playsinline: 1,
-        },
-        events: {
-          onReady: () => {
-            ytReady = true;
-            if (wantPlay) { ytPlayer.setVolume(55); ytPlayer.playVideo(); }
-          },
-        },
-      });
-    };
-    (function loadYT() {
-      const s = document.createElement("script");
-      s.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(s);
-    })();
 
     // Дарж эхлүүлэх — нэг товшилтоор дуу+хөгжим асаана
     const overlay = document.getElementById("startOverlay");
@@ -375,9 +400,7 @@
     function begin() {
       if (audioOn) return;
       audioOn = true;
-      try { startAudio(); } catch (e) {}          // зүрхний цохилт
-      wantPlay = true;                             // River Flows in You
-      if (ytReady && ytPlayer) { ytPlayer.setVolume(55); ytPlayer.playVideo(); }
+      try { startAudio(); } catch (e) {}  // зүрхний цохилт + rock guitar
       overlay.style.opacity = "0";
       setTimeout(() => (overlay.style.display = "none"), 800);
     }
